@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="ru" class="h-full bg-slate-50">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Архив проповедей и ответов</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/minisearch@7.1.0/dist/umd/index.min.js"></script>
+  <style>
+    mark {
+      background-color: #fde047;
+      color: #854d0e;
+      padding: 0.1rem 0.25rem;
+      border-radius: 0.2rem;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body class="h-full text-slate-800 antialiased selection:bg-indigo-500 selection:text-white">
+
+  <div id="appLoader" class="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-slate-900/90 backdrop-blur-md text-white transition-opacity duration-500 px-4">
+    <div class="bg-slate-800/90 border border-slate-700 p-8 rounded-3xl shadow-2xl max-w-md w-full text-center space-y-6">
+      
+      <div class="relative w-20 h-20 mx-auto">
+        <div class="absolute inset-0 rounded-2xl bg-indigo-500/20 animate-ping"></div>
+        <div class="relative w-20 h-20 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+          <svg class="w-10 h-10 text-white animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 100-6 3 3 0 000 6z"/>
+          </svg>
+        </div>
+      </div>
+
+      <div class="space-y-1.5">
+        <h2 class="text-xl font-bold tracking-tight text-white">Инициализация архива</h2>
+        <p id="loaderStatus" class="text-sm text-indigo-300">Подключение к базе данных...</p>
+      </div>
+
+      <div class="space-y-2">
+        <div class="w-full bg-slate-700/80 rounded-full h-3 overflow-hidden p-0.5 border border-slate-600/60">
+          <div id="progressBar" class="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 h-full rounded-full transition-all duration-200 ease-out w-0"></div>
+        </div>
+        <div class="flex justify-between items-center text-xs font-mono text-slate-400">
+          <span id="loaderDetail">0.0 MB</span>
+          <span id="loaderPercent" class="font-bold text-indigo-300">0%</span>
+        </div>
+      </div>
+
+      <p class="text-xs text-slate-500">При повторном входе база и поисковый индекс откроются мгновенно из кэша.</p>
+    </div>
+  </div>
+
+  <div class="min-h-full flex flex-col">
+    
+    <header class="bg-indigo-900 text-white shadow-lg sticky top-0 z-50">
+      <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h1 class="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <svg class="w-7 h-7 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 100-6 3 3 0 000 6z"/>
+              </svg>
+              Архив проповедей и ответов
+            </h1>
+            <p class="text-indigo-200 text-sm mt-1">Поиск по темам, ответам и полным расшифровкам</p>
+          </div>
+
+          <div id="stats" class="text-xs font-medium bg-indigo-950/60 border border-indigo-700/50 rounded-full px-4 py-2 self-start md:self-auto flex items-center gap-2">
+            <span class="inline-block w-2 h-2 rounded-full bg-amber-400"></span>
+            Ожидание загрузки...
+          </div>
+        </div>
+
+        <div class="mt-5 relative">
+          <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+          </div>
+          <input 
+            type="text" 
+            id="searchInput" 
+            placeholder="Введите слово или тему (например: исповедь, венчание, молитва)..." 
+            class="w-full pl-11 pr-16 py-3 bg-white text-slate-900 rounded-xl shadow-md border-0 focus:ring-2 focus:ring-indigo-400 placeholder-slate-400 text-base"
+          >
+          
+          <div id="searchSpinner" class="hidden absolute inset-y-0 right-10 flex items-center pointer-events-none text-indigo-600">
+            <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          </div>
+
+          <button id="clearBtn" class="hidden absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div id="results" class="space-y-6"></div>
+
+      <div id="loadMoreContainer" class="mt-8 text-center hidden">
+        <button id="loadMoreBtn" class="px-6 py-2.5 bg-white border border-slate-300 text-slate-700 font-medium text-sm rounded-xl shadow-sm hover:bg-slate-50 transition-colors">
+          Показать ещё
+        </button>
+      </div>
+    </main>
+
+    <footer class="bg-white border-t border-slate-200 mt-auto py-6 text-center text-sm text-slate-500">
+      <a href="https://t.me/baza_verdikta_bot" target="_blank" rel="noopener noreferrer" class="underline">База Вердикта</a>
+    </footer>
+  </div>
+
+  <script>
+    let database = [];
+    let itemsById = new Map();
+    let miniSearch = null;
+    let currentFiltered = [];
+    let currentQuery = '';
+    let displayedCount = 0;
+    const PAGE_SIZE = 20;
+
+    const RUSSIAN_STOP_WORDS = new Set([
+      'и', 'в', 'во', 'не', 'что', 'он', 'на', 'я', 'с', 'со', 'как', 'а', 'то', 'все', 'она', 'так',
+      'его', 'но', 'да', 'ты', 'к', 'у', 'же', 'вы', 'за', 'бы', 'по', 'только', 'ее', 'мне', 'было',
+      'вот', 'от', 'меня', 'еще', 'нет', 'о', 'из', 'ему', 'теперь', 'когда', 'даже', 'ну', 'вдруг',
+      'ли', 'если', 'уже', 'или', 'ни', 'быть', 'был', 'него', 'до', 'вас', 'нибудь', 'опять', 'уж',
+      'вам', 'ведь', 'там', 'потом', 'себя', 'ничего', 'ей', 'может', 'они', 'тут', 'где', 'есть',
+      'надо', 'ней', 'для', 'мы', 'тебя', 'их', 'чем', 'была', 'сам', 'чтоб', 'без', 'будто', 'чего',
+      'раз', 'тоже', 'себе', 'под', 'будет', 'ж', 'тогда', 'кто', 'этот', 'того', 'потому', 'этого',
+      'какой', 'совсем', 'ним', 'здесь', 'этом', 'один', 'почти', 'мой', 'тем', 'чтобы', 'нее', 'сейчас',
+      'были', 'куда', 'зачем', 'всех', 'никогда', 'можно', 'наш', 'друг', 'два', 'при'
+    ]);
+
+    function stemRussianWord(word) {
+      if (!word) return '';
+      let w = word.toLowerCase().replace(/ё/g, 'е');
+      w = w.replace(/крещ/g, 'крест').replace(/помещ/g, 'помест');
+
+      if (w.length < 3) return w;
+      const match = w.match(/^([^аеиоуыэюя]*[аеиоуыэюя])(.*)$/);
+      if (!match) return w;
+
+      const head = match[1];
+      let rv = match[2];
+
+      let r = rv.replace(/(ив|ивши|ившись|ыв|ывши|ывшись)$/, '');
+      if (r === rv) r = rv.replace(/([ая])(в|вши|вшись)$/, '$1');
+      
+      if (r !== rv) {
+        rv = r;
+      } else {
+        rv = rv.replace(/(с[яь])$/, '');
+        r = rv.replace(/(ее|ие|ые|ое|ими|ыми|ей|ой|ий|ый|ем|им|ым|ом|его|ых|их|ую|юю|ая|яя|ою|ею)$/, '');
+        if (r !== rv) {
+          rv = r;
+          rv = rv.replace(/(ивш|ывш|ующ)$/, '');
+          rv = rv.replace(/([ая])(ем|нн|вш|ющ|щ)$/, '$1');
+        } else {
+          r = rv.replace(/(чила|ила|ыла|ена|ейте|уйте|ите|или|ыли|им|ым|ен|ило|ыло|ено|ят|уют|ены|ть|ишь|нно|ил|ыл)$/, '');
+          if (r === rv) {
+            r = rv.replace(/([ая])(ла|на|ете|йте|ли|й|л|ем|н|ло|но|ет|ют|ны|ть|ешь|нно)$/, '$1');
+          }
+          if (r !== rv) {
+            rv = r;
+          } else {
+            rv = rv.replace(/(а|ев|ов|ье|и|ями|ами|е|иями|ии|ия|о|у|ах|ях|ы|ь|ю|ию|гом|ом|ем)$/, '');
+          }
+        }
+      }
+
+      rv = rv.replace(/и$/, '');
+      if (/(ость|ост)$/.test(rv)) rv = rv.replace(/(ость|ост)$/, '');
+      rv = rv.replace(/ейше?$/, '');
+      if (rv.endsWith('нн')) rv = rv.slice(0, -1);
+      rv = rv.replace(/ь$/, '');
+
+      return head + rv;
+    }
+
+    const searchOptions = {
+      fields: ['qst_body', 'msg_title', 'ai_summary', 'transcription'],
+      idField: 'msg_id',
+      tokenize: (text) => text.split(/[\s\n\r\t.,!?:;"'()\[\]{}«»—–-]+/),
+      processTerm: (term) => {
+        const clean = term.toLowerCase().replace(/ё/g, 'е').replace(/[^а-яa-z0-9]/g, '');
+        if (!clean || clean.length < 2 || RUSSIAN_STOP_WORDS.has(clean)) return null;
+        return stemRussianWord(clean);
+      },
+      searchOptions: {
+        boost: {
+          'qst_body': 6,
+          'msg_title': 5,
+          'ai_summary': 3,
+          'transcription': 1
+        },
+        prefix: (term) => term.length >= 3,
+        fuzzy: (term) => term.length >= 5 ? 0.2 : false,
+        combineWith: 'AND'
+      }
+    };
+
+    function createSearchInstance() {
+      return new MiniSearch(searchOptions);
+    }
+
+    const userDateTimeFormatter = new Intl.DateTimeFormat(undefined, {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    function formatToUserTimeZone(dateInput) {
+      if (!dateInput) return '';
+      if (typeof dateInput === 'number') {
+        const d = new Date(dateInput * (dateInput < 1e11 ? 1000 : 1));
+        return isNaN(d.getTime()) ? String(dateInput) : userDateTimeFormatter.format(d);
+      }
+      
+      let str = String(dateInput).trim();
+      if (!str) return '';
+
+      let parsed = null;
+      if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?$/.test(str)) {
+        parsed = new Date(str.replace(' ', 'T') + 'Z');
+      } else {
+        parsed = new Date(str);
+      }
+
+      if (parsed && !isNaN(parsed.getTime())) {
+        return userDateTimeFormatter.format(parsed);
+      }
+      return str;
+    }
+
+    function preEditData(data) {
+      for (let i = 0; i < data.length; i++) {
+        const item = data[i];
+        if (item.date) {
+          item.date = formatToUserTimeZone(item.date);
+        }
+      }
+    }
+
+    const IDB_NAME = 'SermonsIndexDB';
+    const IDB_STORE = 'index_cache';
+    const IDB_KEY = 'minisearch_index_data';
+
+    function openIndexedDB() {
+      return new Promise((resolve, reject) => {
+        const request = indexedDB.open(IDB_NAME, 1);
+        request.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains(IDB_STORE)) {
+            db.createObjectStore(IDB_STORE);
+          }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    async function loadIndexFromIDB(cacheSignature) {
+      try {
+        const db = await openIndexedDB();
+        return new Promise((resolve) => {
+          const tx = db.transaction(IDB_STORE, 'readonly');
+          const store = tx.objectStore(IDB_STORE);
+          const req = store.get(IDB_KEY);
+          req.onsuccess = () => {
+            const res = req.result;
+            if (res && res.signature === cacheSignature && res.indexJSON) {
+              resolve(res.indexJSON);
+            } else {
+              resolve(null);
+            }
+          };
+          req.onerror = () => resolve(null);
+        });
+      } catch {
+        return null;
+      }
+    }
+
+    async function saveIndexToIDB(cacheSignature, indexJSON) {
+      try {
+        const db = await openIndexedDB();
+        return new Promise((resolve) => {
+          const tx = db.transaction(IDB_STORE, 'readwrite');
+          const store = tx.objectStore(IDB_STORE);
+          store.put({ signature: cacheSignature, indexJSON }, IDB_KEY);
+          tx.oncomplete = () => resolve(true);
+          tx.onerror = () => resolve(false);
+        });
+      } catch {
+        return false;
+      }
+    }
+
+    function normalizeForPhrase(str) {
+      if (!str) return '';
+      return str
+        .toLowerCase()
+        .replace(/ё/g, 'е')
+        .replace(/[^а-яa-z0-9]+/g, ' ')
+        .trim();
+    }
+
+    function getQueryStems(query) {
+      if (!query) return [];
+      const words = query.trim().toLowerCase().replace(/ё/g, 'е').split(/[\s\n\r\t.,!?:;"'()\[\]{}«»—–-]+/);
+      const stems = [];
+      const seen = new Set();
+
+      for (const w of words) {
+        const clean = w.replace(/[^а-яa-z0-9]/g, '');
+        if (clean && clean.length >= 2 && !RUSSIAN_STOP_WORDS.has(clean)) {
+          const stem = stemRussianWord(clean);
+          if (stem && !seen.has(stem)) {
+            seen.add(stem);
+            stems.push({ raw: clean, stem });
+          }
+        }
+      }
+      return stems;
+    }
+
+    function calculateFieldProximityScore(text, queryStems, cleanRawQuery) {
+      if (!text) return 0;
+      
+      const normText = text.toLowerCase().replace(/ё/g, 'е');
+      
+      if (cleanRawQuery && cleanRawQuery.length >= 4) {
+        const cleanField = normText.replace(/[^а-яa-z0-9]+/g, ' ');
+        if (cleanField.includes(cleanRawQuery)) {
+          return 140;
+        }
+      }
+
+      if (!queryStems || queryStems.length < 2) return 0;
+
+      for (let i = 0; i < queryStems.length; i++) {
+        const s = queryStems[i];
+        if (!normText.includes(s.stem) && !normText.includes(s.raw)) {
+          return 0;
+        }
+      }
+
+      const rawTokens = normText.split(/[\s\n\r\t.,!?:;"'()\[\]{}«»—–-]+/);
+      const matches = [];
+      let tokenIndex = 0;
+
+      for (let i = 0; i < rawTokens.length; i++) {
+        const raw = rawTokens[i].replace(/[^а-яa-z0-9]/g, '');
+        if (!raw) continue;
+        tokenIndex++;
+        if (RUSSIAN_STOP_WORDS.has(raw)) continue;
+
+        const st = stemRussianWord(raw);
+        for (let qIdx = 0; qIdx < queryStems.length; qIdx++) {
+          const q = queryStems[qIdx];
+          if (raw.startsWith(q.raw) || (st.length >= 3 && (st === q.stem || st.startsWith(q.stem) || q.stem.startsWith(st)))) {
+            matches.push({ pos: tokenIndex, qIdx });
+            break;
+          }
+        }
+      }
+
+      const k = queryStems.length;
+      if (matches.length < k) return 0;
+
+      const windowCount = new Map();
+      let distinctCount = 0;
+      let minSpan = Infinity;
+      let inOrderAtMin = false;
+      let left = 0;
+
+      for (let right = 0; right < matches.length; right++) {
+        const rQIdx = matches[right].qIdx;
+        const cnt = windowCount.get(rQIdx) || 0;
+        if (cnt === 0) distinctCount++;
+        windowCount.set(rQIdx, cnt + 1);
+
+        while (distinctCount === k) {
+          const span = matches[right].pos - matches[left].pos + 1;
+          if (span < minSpan) {
+            minSpan = span;
+            let inOrder = true;
+            let prevQ = -1;
+            for (let m = left; m <= right; m++) {
+              if (matches[m].qIdx < prevQ) {
+                inOrder = false;
+                break;
+              }
+              prevQ = matches[m].qIdx;
+            }
+            inOrderAtMin = inOrder;
+          }
+
+          const lQIdx = matches[left].qIdx;
+          const lCnt = windowCount.get(lQIdx);
+          if (lCnt === 1) distinctCount--;
+          windowCount.set(lQIdx, lCnt - 1);
+          left++;
+        }
+      }
+
+      if (minSpan === Infinity) return 0;
+
+      const density = Math.min(1, k / minSpan);
+      let score = Math.pow(density, 1.4) * 80;
+
+      if (inOrderAtMin) score *= 1.35;
+
+      if (minSpan <= k + 6) {
+        score += 30;
+      }
+
+      return score;
+    }
+
+    function calculateItemProximityScore(item, queryStems, cleanRawQuery) {
+      let total = 0;
+      const weights = {
+        qst_body: 6,
+        msg_title: 5,
+        ai_summary: 3,
+        transcription: 1.2
+      };
+      
+      for (const [field, weight] of Object.entries(weights)) {
+        const val = item[field];
+        if (val) {
+          const fieldScore = calculateFieldProximityScore(val, queryStems, cleanRawQuery);
+          total += fieldScore * weight;
+        }
+      }
+      return total;
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function processText(text, query) {
+      if (!text) return '';
+      let safeText = escapeHtml(text);
+
+      if (query && query.trim()) {
+        const queryTerms = query.trim().toLowerCase().split(/\s+/)
+          .map(w => w.replace(/[^а-яa-z0-9]/g, ''))
+          .filter(w => w.length >= 2 && !RUSSIAN_STOP_WORDS.has(w));
+
+        if (queryTerms.length > 0) {
+          const queryStems = queryTerms.map(w => ({ raw: w, stem: stemRussianWord(w) }));
+          const tokenRegex = /(&[a-zA-Z0-9#]+;|[а-яА-ЯёЁa-zA-Z0-9]+)/g;
+
+          safeText = safeText.replace(tokenRegex, (match) => {
+            if (match.startsWith('&') && match.endsWith(';')) return match;
+
+            const cleanWord = match.toLowerCase().replace(/ё/g, 'е');
+            if (RUSSIAN_STOP_WORDS.has(cleanWord)) return match;
+            const wordStem = stemRussianWord(cleanWord);
+
+            for (const q of queryStems) {
+              if (
+                cleanWord.startsWith(q.raw) || 
+                (q.stem.length >= 3 && (wordStem === q.stem || wordStem.startsWith(q.stem)))
+              ) {
+                return `<mark>${match}</mark>`;
+              }
+            }
+            return match;
+          });
+        }
+      }
+
+      safeText = safeText.replace(/\[(\d{2}:\d{2}(?::\d{2})?)\]/g, (match, p1) => {
+        return `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-medium bg-indigo-50 text-indigo-700 border border-indigo-200/60 my-0.5">${p1}</span>`;
+      });
+
+      return safeText;
+    }
+
+    function createCardHtml(item, query) {
+      const qstText = (item.qst_body || '').trim();
+      const titleText = (item.msg_title || '').trim();
+      const qstLink = (item.qst_link || '').trim();
+      const ansLink = (item.answer_link || '').trim();
+
+      const summaryText = (item.ai_summary || '')
+        .replace(/\r\n?/g, '\n')
+        .split('\n')
+        .map(line => line.trim())
+        .join('\n')
+        .replace(/[ \t]{2,}/g, ' ')
+        .trim();
+
+      const hasTranscript = Boolean(item.transcription);
+      const matchedInTranscript = Boolean(item._matchedInTranscript);
+
+      return `
+        <article class="bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden" data-msg-id="${item.msg_id}">
+          <div class="bg-slate-50/80 px-6 py-3.5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
+            <div class="flex items-center gap-2">
+              <span class="font-semibold text-slate-700 bg-slate-200/70 px-2 py-0.5 rounded">#${item.msg_id}</span>
+              <span>•</span>
+              <time>${item.date || ''}</time>
+            </div>
+            <div class="flex items-center gap-3">
+              ${qstLink ? `
+                <a href="${qstLink}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 font-medium transition-colors">
+                  <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/></svg>
+                  К вопросу в TG
+                </a>
+              ` : ''}
+              ${ansLink ? `
+                <a href="${ansLink}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-emerald-600 hover:text-emerald-800 font-medium transition-colors bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200/60">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  Слушать в Telegram
+                </a>
+              ` : ''}
+            </div>
+          </div>
+
+          <div class="p-6 space-y-5">
+            ${qstText ? `
+              <div class="bg-indigo-50/40 border-l-4 border-indigo-500 p-4 rounded-r-xl space-y-2">
+                <h4 class="text-xs font-bold uppercase tracking-wider text-indigo-900/70">Вопрос:</h4>
+                <p class="text-slate-800 text-base leading-relaxed font-medium">
+                  ${processText(qstText, query)}
+                </p>
+                ${titleText ? `
+                  <div class="pt-2 border-t border-indigo-100/80 text-xs text-indigo-950/70 italic">
+                    <span class="font-semibold not-italic">Подпись священника:</span> ${processText(titleText, query)}
+                  </div>
+                ` : ''}
+              </div>
+            ` : ''}
+
+            ${!qstText && titleText ? `
+              <div class="bg-amber-50/50 border-l-4 border-amber-500 p-4 rounded-r-xl">
+                <h4 class="text-xs font-bold uppercase tracking-wider text-amber-900/70 mb-1">Тема / Подпись:</h4>
+                <p class="text-slate-800 text-base leading-relaxed font-medium">
+                  ${processText(titleText, query)}
+                </p>
+              </div>
+            ` : ''}
+
+            ${summaryText ? `
+              <div class="space-y-2">
+                <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400">Темы и ключевые мысли:</h4>
+                <div class="bg-slate-50 border border-slate-200/60 rounded-xl p-4 text-sm leading-relaxed whitespace-pre-wrap text-slate-700">${processText(summaryText, query)}</div>
+              </div>
+            ` : ''}
+
+            ${hasTranscript ? `
+              <details class="group border border-slate-200/80 rounded-xl overflow-hidden transcript-card" data-id="${item.msg_id}">
+                <summary class="flex items-center justify-between p-4 bg-slate-50/50 hover:bg-slate-100/60 cursor-pointer select-none transition-colors">
+                  <span class="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-slate-400 group-open:rotate-90 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                    </svg>
+                    Полная расшифровка аудио
+                  </span>
+                  ${matchedInTranscript ? '<span class="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-medium">Совпадение в тексте</span>' : ''}
+                </summary>
+                <div class="transcript-body p-4 bg-white border-t border-slate-100 text-sm leading-loose text-slate-600 font-normal whitespace-pre-wrap font-sans">${matchedInTranscript ? processText(item.transcription, query) : '<span class="text-slate-400 text-xs italic">Нажмите, чтобы отобразить текст</span>'}
+                </div>
+              </details>
+            ` : ''}
+          </div>
+        </article>
+      `;
+    }
+
+    function render(items, query = '', append = false) {
+      const container = document.getElementById('results');
+      const stats = document.getElementById('stats');
+      const loadMoreContainer = document.getElementById('loadMoreContainer');
+
+      if (!append) {
+        currentFiltered = items;
+        currentQuery = query;
+        displayedCount = 0;
+        container.innerHTML = '';
+      }
+
+      stats.innerHTML = `<span class="inline-block w-2 h-2 rounded-full bg-emerald-400"></span> Записей: ${currentFiltered.length} из ${database.length}`;
+
+      if (currentFiltered.length === 0) {
+        container.innerHTML = `
+          <div class="bg-white rounded-2xl p-12 text-center border border-slate-200 shadow-sm">
+            <svg class="mx-auto h-12 w-12 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h3 class="mt-2 text-base font-semibold text-slate-900">Ничего не найдено</h3>
+            <p class="mt-1 text-sm text-slate-500">Попробуйте ввести другое слово или сократить запрос.</p>
+          </div>
+        `;
+        loadMoreContainer.classList.add('hidden');
+        return;
+      }
+
+      const nextBatch = currentFiltered.slice(displayedCount, displayedCount + PAGE_SIZE);
+      const html = nextBatch.map(item => createCardHtml(item, currentQuery)).join('');
+      container.insertAdjacentHTML('beforeend', html);
+
+      displayedCount += nextBatch.length;
+
+      if (displayedCount < currentFiltered.length) {
+        loadMoreContainer.classList.remove('hidden');
+      } else {
+        loadMoreContainer.classList.add('hidden');
+      }
+
+      bindLazyTranscripts();
+    }
+
+    function bindLazyTranscripts() {
+      document.querySelectorAll('.transcript-card:not([data-bound])').forEach(el => {
+        el.setAttribute('data-bound', 'true');
+        el.addEventListener('toggle', () => {
+          if (el.open) {
+            const body = el.querySelector('.transcript-body');
+            const msgId = el.getAttribute('data-id');
+            const item = itemsById.get(Number(msgId)) || itemsById.get(String(msgId));
+            if (item && item.transcription && body.textContent.includes('Нажмите, чтобы отобразить текст')) {
+              body.innerHTML = processText(item.transcription, currentQuery);
+            }
+          }
+        });
+      });
+    }
+
+    document.getElementById('loadMoreBtn').addEventListener('click', () => {
+      render(currentFiltered, currentQuery, true);
+    });
+
+    let searchTimeout = null;
+    const searchInput = document.getElementById('searchInput');
+    const clearBtn = document.getElementById('clearBtn');
+    const searchSpinner = document.getElementById('searchSpinner');
+
+    searchInput.addEventListener('input', (e) => {
+      const val = e.target.value;
+      clearBtn.classList.toggle('hidden', !val);
+
+      if (val.trim()) searchSpinner.classList.remove('hidden');
+
+      clearTimeout(searchTimeout);
+
+      searchTimeout = setTimeout(async () => {
+        const query = val.trim();
+
+        if (!query) {
+          searchSpinner.classList.add('hidden');
+          database.forEach(it => it._matchedInTranscript = false);
+          render(database);
+          return;
+        }
+
+        await new Promise(r => requestAnimationFrame(r));
+
+        let results = miniSearch.search(query, { combineWith: 'AND' });
+        if (results.length === 0) {
+          results = miniSearch.search(query, { combineWith: 'OR' });
+        }
+
+        const queryStems = getQueryStems(query);
+        const cleanRawQuery = normalizeForPhrase(query);
+        const isMultiWord = queryStems.length >= 2 || (cleanRawQuery.includes(' ') && cleanRawQuery.length >= 4);
+
+        const rescoredResults = [];
+        for (const r of results) {
+          const item = itemsById.get(r.id);
+          if (item) {
+            const matchObj = r.match || {};
+            item._matchedInTranscript = Object.values(matchObj).some(fields => fields.includes('transcription'));
+
+            let bonus = 0;
+            if (isMultiWord) {
+              bonus = calculateItemProximityScore(item, queryStems, cleanRawQuery);
+            }
+            rescoredResults.push({ item, score: r.score + bonus });
+          }
+        }
+
+        if (isMultiWord) {
+          rescoredResults.sort((a, b) => b.score - a.score);
+        }
+
+        const filtered = rescoredResults.map(entry => entry.item);
+
+        render(filtered, query);
+        searchSpinner.classList.add('hidden');
+      }, 250);
+    });
+
+    clearBtn.addEventListener('click', () => {
+      searchInput.value = '';
+      clearBtn.classList.add('hidden');
+      searchSpinner.classList.add('hidden');
+      database.forEach(it => it._matchedInTranscript = false);
+      render(database);
+    });
+
+    const CACHE_NAME = 'sermons-archive-cache-v1';
+    const DATA_URL = 'data.json';
+
+    function updateLoader(percent, status, detail) {
+      document.getElementById('progressBar').style.width = `${percent}%`;
+      document.getElementById('loaderPercent').textContent = `${Math.round(percent)}%`;
+      if (status) document.getElementById('loaderStatus').textContent = status;
+      if (detail) document.getElementById('loaderDetail').textContent = detail;
+    }
+
+    async function fetchWithProgress() {
+      const cache = await ('caches' in window ? caches.open(CACHE_NAME) : Promise.resolve(null));
+      let response = null;
+
+      if (cache) {
+        response = await cache.match(DATA_URL);
+        if (response) {
+          updateLoader(40, 'Загрузка из кэша браузера...', 'Мгновенный доступ');
+          const jsonText = await response.text();
+          return JSON.parse(jsonText);
+        }
+      }
+
+      updateLoader(5, 'Скачивание базы данных (18 MB)...', '0.0 MB');
+      const networkResponse = await fetch(DATA_URL);
+      if (!networkResponse.ok) throw new Error(`HTTP ${networkResponse.status}`);
+
+      if (cache) {
+        cache.put(DATA_URL, networkResponse.clone()).catch(() => {});
+      }
+
+      const contentLength = +networkResponse.headers.get('Content-Length') || (18 * 1024 * 1024);
+      const reader = networkResponse.body.getReader();
+      let receivedLength = 0;
+      const chunks = [];
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        receivedLength += value.length;
+
+        const downloadPct = Math.min(60, (receivedLength / contentLength) * 60);
+        const mb = (receivedLength / (1024 * 1024)).toFixed(1);
+        updateLoader(downloadPct, 'Загрузка аудиоархива...', `${mb} MB`);
+      }
+
+      updateLoader(65, 'Обработка данных...', 'Разбор JSON');
+      
+      const fullBlob = new Uint8Array(receivedLength);
+      let position = 0;
+      for (const chunk of chunks) {
+        fullBlob.set(chunk, position);
+        position += chunk.length;
+      }
+      
+      const jsonText = new TextDecoder('utf-8').decode(fullBlob);
+      return JSON.parse(jsonText);
+    }
+
+    async function initApp() {
+      try {
+        const data = await fetchWithProgress();
+        
+        updateLoader(68, 'Предобработка времени...', 'Синхронизация часового пояса');
+        preEditData(data);
+
+        database = data;
+        itemsById = new Map();
+        database.forEach(item => itemsById.set(item.msg_id, item));
+
+        const totalItems = database.length;
+        const firstId = totalItems > 0 ? database[0].msg_id : 0;
+        const lastId = totalItems > 0 ? database[totalItems - 1].msg_id : 0;
+        const cacheSignature = `idx_v1_${totalItems}_${firstId}_${lastId}`;
+
+        updateLoader(72, 'Проверка сохраненного индекса...', 'Кэш IndexedDB');
+        const cachedIndexStr = await loadIndexFromIDB(cacheSignature);
+
+        if (cachedIndexStr) {
+          updateLoader(85, 'Восстановление индекса из кэша...', 'Мгновенно');
+          miniSearch = MiniSearch.loadJSON(cachedIndexStr, searchOptions);
+        } else {
+          miniSearch = createSearchInstance();
+          const batchSize = 150;
+
+          for (let i = 0; i < totalItems; i += batchSize) {
+            const chunk = database.slice(i, i + batchSize);
+            miniSearch.addAll(chunk);
+
+            const indexPct = 72 + ((i + chunk.length) / totalItems) * 25;
+            updateLoader(indexPct, 'Первичная индексация транскрипций...', `${Math.min(i + batchSize, totalItems)} из ${totalItems}`);
+            await new Promise(r => setTimeout(r, 0));
+          }
+
+          updateLoader(98, 'Сохранение индекса для быстрого запуска...', 'Кэширование');
+          const indexJSON = JSON.stringify(miniSearch);
+          saveIndexToIDB(cacheSignature, indexJSON).catch(() => {});
+        }
+
+        updateLoader(100, 'Готово!', `${totalItems} сообщений`);
+
+        setTimeout(() => {
+          render(database);
+          const loader = document.getElementById('appLoader');
+          loader.classList.add('opacity-0', 'pointer-events-none');
+          setTimeout(() => loader.remove(), 500);
+        }, 200);
+
+      } catch (err) {
+        console.error("Ошибка загрузки:", err);
+        document.getElementById('loaderStatus').textContent = 'Ошибка инициализации базы';
+        document.getElementById('loaderDetail').textContent = err.message || 'Проверьте соединение';
+        document.getElementById('progressBar').classList.add('bg-red-500');
+      }
+    }
+
+    initApp();
+  </script>
+</body>
+</html>
